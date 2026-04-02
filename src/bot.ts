@@ -1,4 +1,9 @@
 import type { OpenClawConfig, RuntimeEnv } from "openclaw/plugin-sdk";
+import { createChannelPairingController } from "openclaw/plugin-sdk/channel-pairing";
+import {
+	DM_GROUP_ACCESS_REASON,
+	resolveDmGroupAccessWithLists,
+} from "openclaw/plugin-sdk/channel-policy";
 import {
 	resolveSendableOutboundReplyParts,
 	sendMediaWithLeadingCaption,
@@ -15,6 +20,20 @@ import type {
 	SeaTalkMessage,
 	SeaTalkMessageEvent,
 } from "./types.js";
+
+function isSeaTalkSenderAllowed(
+	employeeCode: string,
+	email: string | undefined,
+	allowFrom: string[],
+): boolean {
+	return allowFrom.some((entry) => {
+		const e = entry.trim();
+		if (e === "*") return true;
+		if (e === employeeCode) return true;
+		if (email && e.toLowerCase() === email.toLowerCase()) return true;
+		return false;
+	});
+}
 
 export function dispatchSeaTalkEvent(params: {
 	cfg: OpenClawConfig;
@@ -297,25 +316,54 @@ async function processBufferedDmEvents(
 	const account = resolveSeaTalkAccount({ cfg, accountId });
 	const seatalkCfg = account.config;
 
+	const core = getSeatalkRuntime();
 	const dmPolicy = seatalkCfg?.dmPolicy ?? "allowlist";
-	const allowFrom = seatalkCfg?.allowFrom ?? [];
+	const configAllowFrom = (seatalkCfg?.allowFrom ?? []).map((v) => String(v));
 
-	if (dmPolicy === "allowlist") {
-		const allowed =
-			allowFrom.length === 0
-				? false
-				: allowFrom.some((entry) => {
-						const e = entry.trim();
-						if (e === "*") return true;
-						if (e === employeeCode) return true;
-						if (email && e.toLowerCase() === email.toLowerCase()) return true;
-						return false;
-					});
+	const pairing = createChannelPairingController({ core, channel: "seatalk", accountId });
+	const storeAllowFrom =
+		dmPolicy === "pairing" ? await pairing.readAllowFromStore().catch(() => []) : [];
 
-		if (!allowed) {
-			log(`seatalk[${accountId}]: sender ${employeeCode} not in allowlist, dropping`);
-			return;
+	const accessDecision = resolveDmGroupAccessWithLists({
+		isGroup: false,
+		dmPolicy,
+		groupPolicy: "disabled",
+		allowFrom: configAllowFrom,
+		groupAllowFrom: [],
+		storeAllowFrom,
+		isSenderAllowed: (list) => isSeaTalkSenderAllowed(employeeCode, email, list),
+	});
+
+	if (accessDecision.decision === "pairing") {
+		const result = await pairing.issueChallenge({
+			senderId: employeeCode,
+			senderIdLine: `Your SeaTalk employee code: ${employeeCode}`,
+			meta: email ? { email } : undefined,
+			onCreated: ({ code }) => {
+				log(`seatalk[${accountId}]: pairing request sender=${employeeCode} code=${code}`);
+			},
+			sendPairingReply: async (text) => {
+				await sendTextMessage(client, employeeCode, text, 1, first.message.thread_id);
+			},
+			onReplyError: (err) => {
+				log(
+					`seatalk[${accountId}]: pairing reply failed for ${employeeCode}: ${String(err)}`,
+				);
+			},
+		});
+		if (!result.created) {
+			log(`seatalk[${accountId}]: pairing already pending for ${employeeCode}`);
 		}
+		return;
+	}
+
+	if (accessDecision.decision !== "allow") {
+		if (accessDecision.reasonCode === DM_GROUP_ACCESS_REASON.DM_POLICY_DISABLED) {
+			log(`seatalk[${accountId}]: blocked DM from ${employeeCode} (dmPolicy=disabled)`);
+		} else {
+			log(`seatalk[${accountId}]: sender ${employeeCode} not in allowlist, dropping`);
+		}
+		return;
 	}
 
 	const mediaList: SeaTalkMediaInfo[] = [];
@@ -358,8 +406,6 @@ async function processBufferedDmEvents(
 	const threadId = first.message.thread_id;
 
 	try {
-		const core = getSeatalkRuntime();
-
 		const seatalkFrom = `seatalk:${employeeCode}`;
 		const seatalkTo = employeeCode;
 
