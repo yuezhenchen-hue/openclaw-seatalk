@@ -3,6 +3,7 @@ import type { SeaTalkTokenInfo } from "./types.js";
 const BASE_URL = "https://openapi.seatalk.io";
 const HTTP_TIMEOUT_MS = 10_000;
 const TOKEN_REFRESH_MARGIN_S = 600;
+const RATE_LIMIT_RETRY_DELAYS_MS = [10_000, 60_000];
 
 export class SeaTalkClient {
 	private appId: string;
@@ -93,11 +94,13 @@ export class SeaTalkClient {
 		path: string,
 		body?: unknown,
 		retry = true,
+		rateLimitAttempt = 0,
 	): Promise<T> {
 		const token = await this.getAccessToken();
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
 
+		let xRid: string | undefined;
 		try {
 			const res = await fetch(`${BASE_URL}${path}`, {
 				method,
@@ -109,7 +112,7 @@ export class SeaTalkClient {
 				signal: controller.signal,
 			});
 
-			const xRid = res.headers.get("x-rid") ?? undefined;
+			xRid = res.headers.get("x-rid") ?? undefined;
 
 			if (!res.ok) {
 				throw Object.assign(
@@ -126,10 +129,17 @@ export class SeaTalkClient {
 			}
 
 			if (data.code === 101) {
-				throw Object.assign(new Error("SeaTalk rate limit exceeded"), {
-					code: 101,
-					xRid,
-				});
+				if (rateLimitAttempt < RATE_LIMIT_RETRY_DELAYS_MS.length) {
+					const delay = RATE_LIMIT_RETRY_DELAYS_MS[rateLimitAttempt];
+					await new Promise((r) => setTimeout(r, delay));
+					return this.apiCall<T>(method, path, body, retry, rateLimitAttempt + 1);
+				}
+				throw Object.assign(
+					new Error(
+						`SeaTalk rate limit exceeded after ${rateLimitAttempt + 1} attempts (x-rid: ${xRid})`,
+					),
+					{ code: 101, xRid },
+				);
 			}
 
 			if (data.code !== 0) {
@@ -142,6 +152,11 @@ export class SeaTalkClient {
 			}
 
 			return data;
+		} catch (err) {
+			if (xRid && err instanceof Error && !err.message.includes("x-rid:")) {
+				err.message += ` (x-rid: ${xRid})`;
+			}
+			throw err;
 		} finally {
 			clearTimeout(timeout);
 		}
