@@ -203,6 +203,7 @@ Or edit the OpenClaw config file directly (`~/.openclaw/openclaw.json`).
 | `groupAllowFrom` | string[] | — | Allowed group IDs (when `groupPolicy: "allowlist"`) |
 | `groupSenderAllowFrom` | string[] | — | Allowed senders within groups (employee codes or emails) |
 | `processingIndicator` | `"typing"` \| `"off"` | `"typing"` | Show typing status while processing |
+| `mediaAllowHosts` | string[] | `["openapi.seatalk.io"]` | Allowed hostnames for inbound media downloads (HTTPS only) |
 | `tools.groupInfo` | boolean | `true` | Enable `seatalk` tool `group_info` action |
 | `tools.groupHistory` | boolean | `true` | Enable `seatalk` tool `group_history` action |
 | `tools.groupList` | boolean | `true` | Enable `seatalk` tool `group_list` action |

@@ -15,13 +15,42 @@ const MAX_OUTBOUND_RAW_BYTES = 3.75 * 1024 * 1024; // ~3.75MB raw → 5MB base64
 const SMALL_FILE_THRESHOLD = 10 * 1024 * 1024; // 10MB
 const MAX_INBOUND_SAVE_BYTES = 250 * 1024 * 1024; // 250MB
 
+const DEFAULT_MEDIA_ALLOWED_HOSTS = ["openapi.seatalk.io"] as const;
+
+export function resolveMediaAllowedHosts(configured?: string[] | null): Set<string> {
+	const raw = configured && configured.length > 0 ? configured : [...DEFAULT_MEDIA_ALLOWED_HOSTS];
+	return new Set(raw.map((h) => h.trim().toLowerCase()).filter(Boolean));
+}
+
+function gateInboundMediaUrl(
+	urlString: string,
+	allowedHosts: Set<string>,
+): { ok: true; hostname: string } | { ok: false; detail: string } {
+	let parsed: URL;
+	try {
+		parsed = new URL(urlString);
+	} catch {
+		return { ok: false, detail: "invalid URL" };
+	}
+	if (parsed.protocol !== "https:") {
+		return { ok: false, detail: `only https allowed (got ${parsed.protocol})` };
+	}
+	const hostname = parsed.hostname.toLowerCase();
+	if (!allowedHosts.has(hostname)) {
+		return { ok: false, detail: `host not in allowlist (${hostname})` };
+	}
+	return { ok: true, hostname };
+}
+
 export async function resolveInboundMedia(params: {
 	message: SeaTalkMessage;
 	client: SeaTalkClient;
+	mediaAllowHosts?: string[] | null;
 	log?: (msg: string) => void;
 }): Promise<SeaTalkMediaInfo | null> {
-	const { message, client, log } = params;
+	const { message, client, log, mediaAllowHosts } = params;
 	const core = getSeatalkRuntime();
+	const allowedHosts = resolveMediaAllowedHosts(mediaAllowHosts);
 
 	let url: string | undefined;
 	let filename: string | undefined;
@@ -46,6 +75,13 @@ export async function resolveInboundMedia(params: {
 
 	if (!url) return null;
 
+	const gate = gateInboundMediaUrl(url, allowedHosts);
+	if (!gate.ok) {
+		log?.(`seatalk: rejected inbound ${message.tag} media before download: ${gate.detail}`);
+		return null;
+	}
+	log?.(`seatalk: inbound ${message.tag} media url host=${gate.hostname}`);
+
 	const MAX_RETRY = 1;
 
 	for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
@@ -57,12 +93,15 @@ export async function resolveInboundMedia(params: {
 				(!contentType || contentType === "application/octet-stream") &&
 				result.buffer.length < SMALL_FILE_THRESHOLD
 			) {
-				contentType = await core.media.detectMime({ buffer: result.buffer });
+				const detected = await core.media.detectMime({ buffer: result.buffer });
+				if (detected) {
+					contentType = detected;
+				}
 			}
 
 			const saved = await core.channel.media.saveMediaBuffer(
 				result.buffer,
-				contentType,
+				contentType ?? "application/octet-stream",
 				"inbound",
 				MAX_INBOUND_SAVE_BYTES,
 				filename,

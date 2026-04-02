@@ -68,6 +68,7 @@ export const seatalkPlugin: ChannelPlugin<ResolvedSeaTalkAccount> = {
 				groupAllowFrom: { type: "array", items: { type: "string" } },
 				groupSenderAllowFrom: { type: "array", items: { type: "string" } },
 				processingIndicator: { type: "string", enum: ["typing", "off"] },
+				mediaAllowHosts: { type: "array", items: { type: "string" } },
 				tools: {
 					type: "object",
 					properties: {
@@ -100,6 +101,7 @@ export const seatalkPlugin: ChannelPlugin<ResolvedSeaTalkAccount> = {
 							groupAllowFrom: { type: "array", items: { type: "string" } },
 							groupSenderAllowFrom: { type: "array", items: { type: "string" } },
 							processingIndicator: { type: "string", enum: ["typing", "off"] },
+							mediaAllowHosts: { type: "array", items: { type: "string" } },
 						},
 					},
 				},
