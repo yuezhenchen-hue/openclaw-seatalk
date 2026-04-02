@@ -33,6 +33,7 @@ export const SeaTalkAccountConfigSchema = z
 		groupSenderAllowFrom: z.array(z.string()).optional(),
 		processingIndicator: ProcessingIndicatorSchema.optional(),
 		mediaAllowHosts: z.array(z.string()).optional(),
+		outboundCoalescing: z.boolean().optional(),
 	})
 	.strict();
 
@@ -53,6 +54,7 @@ export const SeaTalkConfigSchema = z
 		groupSenderAllowFrom: z.array(z.string()).optional(),
 		processingIndicator: ProcessingIndicatorSchema.optional().default("typing"),
 		mediaAllowHosts: z.array(z.string()).optional(),
+		outboundCoalescing: z.boolean().optional().default(true),
 		tools: SeaTalkToolsConfigSchema.optional(),
 		accounts: z.record(z.string(), SeaTalkAccountConfigSchema.optional()).optional(),
 	})

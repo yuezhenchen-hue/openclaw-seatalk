@@ -11,6 +11,7 @@ import {
 import { resolveSeaTalkAccount } from "./accounts.js";
 import type { SeaTalkClient } from "./client.js";
 import { buildSeaTalkMediaPayload, resolveInboundMedia } from "./media.js";
+import { createOutboundCoalescer } from "./outbound-coalescer.js";
 import { getSeatalkRuntime } from "./runtime.js";
 import { sendGroupTextMessage, sendMediaToTarget, sendTextMessage } from "./send.js";
 import type {
@@ -105,6 +106,9 @@ function tryRecordEvent(eventId: string): boolean {
 
 const DEBOUNCE_SLIDE_MS = 1500;
 const DEBOUNCE_HARD_CAP_MS = 5000;
+
+const SEATALK_TEXT_CHUNK_LIMIT = 4000;
+const OUTBOUND_COALESCE_IDLE_MS = 1000;
 
 type DmBufferEntry = {
 	kind: "dm";
@@ -486,6 +490,21 @@ async function processBufferedDmEvents(
 				.catch((err) => log(`seatalk[${accountId}]: typing failed: ${String(err)}`));
 		}
 
+		const coalescingEnabled = seatalkCfg?.outboundCoalescing !== false;
+		const sendDmText = (text: string) =>
+			sendTextMessage(client, employeeCode, text, 1, threadId);
+		const chunkText = (text: string, limit: number) =>
+			core.channel.text.chunkMarkdownText(text, limit);
+		const coalescer = coalescingEnabled
+			? createOutboundCoalescer({
+					send: sendDmText,
+					chunkText,
+					maxLength: SEATALK_TEXT_CHUNK_LIMIT,
+					joiner: "\n\n",
+					idleFlushMs: OUTBOUND_COALESCE_IDLE_MS,
+				})
+			: null;
+
 		const typingResult = core.channel.reply.createReplyDispatcherWithTyping({
 			humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
 			deliver: async (payload) => {
@@ -496,10 +515,18 @@ async function processBufferedDmEvents(
 					log(
 						`seatalk[${accountId}]: inline deliver DM to ${employeeCode} threadId=${threadId || "none"}`,
 					);
-					await sendTextMessage(client, employeeCode, reply.trimmedText, 1, threadId);
+					if (coalescer) {
+						coalescer.append(reply.trimmedText);
+					} else {
+						const chunks = chunkText(reply.trimmedText, SEATALK_TEXT_CHUNK_LIMIT);
+						for (const chunk of chunks) {
+							await sendDmText(chunk);
+						}
+					}
 				}
 
 				if (reply.hasMedia) {
+					if (coalescer) await coalescer.flush();
 					await deliverMediaReplies({
 						mediaUrls: reply.mediaUrls,
 						client,
@@ -535,6 +562,10 @@ async function processBufferedDmEvents(
 			);
 		} finally {
 			typingResult.markDispatchIdle();
+			if (coalescer) {
+				await typingResult.dispatcher.waitForIdle();
+				await coalescer.flush();
+			}
 		}
 	} catch (err) {
 		error(`seatalk[${accountId}]: failed to dispatch message: ${String(err)}`);
@@ -836,6 +867,21 @@ async function processBufferedGroupEvents(
 
 		const replyThreadId = threadId || undefined;
 
+		const groupCoalescingEnabled = seatalkCfg?.outboundCoalescing !== false;
+		const sendGroupText = (text: string) =>
+			sendGroupTextMessage(client, groupId, text, 1, replyThreadId);
+		const chunkGroupText = (text: string, limit: number) =>
+			core.channel.text.chunkMarkdownText(text, limit);
+		const groupCoalescer = groupCoalescingEnabled
+			? createOutboundCoalescer({
+					send: sendGroupText,
+					chunkText: chunkGroupText,
+					maxLength: SEATALK_TEXT_CHUNK_LIMIT,
+					joiner: "\n\n",
+					idleFlushMs: OUTBOUND_COALESCE_IDLE_MS,
+				})
+			: null;
+
 		const typingResult = core.channel.reply.createReplyDispatcherWithTyping({
 			humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
 			deliver: async (payload) => {
@@ -843,16 +889,18 @@ async function processBufferedGroupEvents(
 				if (!reply.hasText && !reply.hasMedia) return;
 
 				if (reply.hasText) {
-					await sendGroupTextMessage(
-						client,
-						groupId,
-						reply.trimmedText,
-						1,
-						replyThreadId,
-					);
+					if (groupCoalescer) {
+						groupCoalescer.append(reply.trimmedText);
+					} else {
+						const chunks = chunkGroupText(reply.trimmedText, SEATALK_TEXT_CHUNK_LIMIT);
+						for (const chunk of chunks) {
+							await sendGroupText(chunk);
+						}
+					}
 				}
 
 				if (reply.hasMedia) {
+					if (groupCoalescer) await groupCoalescer.flush();
 					await deliverMediaReplies({
 						mediaUrls: reply.mediaUrls,
 						client,
@@ -888,6 +936,10 @@ async function processBufferedGroupEvents(
 			);
 		} finally {
 			typingResult.markDispatchIdle();
+			if (groupCoalescer) {
+				await typingResult.dispatcher.waitForIdle();
+				await groupCoalescer.flush();
+			}
 		}
 	} catch (err) {
 		error(`seatalk[${accountId}]: failed to dispatch group message: ${String(err)}`);

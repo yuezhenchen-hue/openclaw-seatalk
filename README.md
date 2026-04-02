@@ -26,6 +26,7 @@ OpenClaw channel plugin for [SeaTalk](https://seatalk.io/) messaging.
 - **Dual gateway mode** — **webhook** (direct HTTP server) or **relay** (WebSocket client via [seatalk-relay](https://github.com/lf4096/seatalk-relay))
 - **Security** — SHA256 signature verification for all incoming events
 - **Token management** — automatic access token obtain, cache, and refresh
+- **Outbound coalescing** — consecutive reply payloads are merged into a single message with automatic markdown-aware chunking at 4000 chars; configurable via `outboundCoalescing`
 - **Deduplication** — event ID dedup + per-sender debounce buffer (thread-aware)
 - **Access control** — DM policy (`open`/`allowlist`/`pairing`), group policy (`disabled`/`allowlist`/`open`), per-group and per-sender allow-lists
 - **Email resolution** — email-to-employee_code lookup for outbound message targets
@@ -202,6 +203,7 @@ Or edit the OpenClaw config file directly (`~/.openclaw/openclaw.json`).
 | `groupPolicy` | `"disabled"` \| `"allowlist"` \| `"open"` | `"disabled"` | Group chat policy |
 | `groupAllowFrom` | string[] | — | Allowed group IDs (when `groupPolicy: "allowlist"`) |
 | `groupSenderAllowFrom` | string[] | — | Allowed senders within groups (employee codes or emails) |
+| `outboundCoalescing` | boolean | `true` | Merge consecutive reply payloads into a single message (4000-char chunking) |
 | `processingIndicator` | `"typing"` \| `"off"` | `"typing"` | Show typing status while processing |
 | `mediaAllowHosts` | string[] | `["openapi.seatalk.io"]` | Allowed hostnames for inbound media downloads (HTTPS only) |
 | `tools.groupInfo` | boolean | `true` | Enable `seatalk` tool `group_info` action |
