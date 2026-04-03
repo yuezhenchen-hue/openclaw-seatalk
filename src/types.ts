@@ -64,6 +64,7 @@ export type SeaTalkMessage = {
 	image?: { content: string };
 	file?: { content: string; filename: string };
 	video?: { content: string };
+	combined_forwarded_chat_history?: { content: unknown[] };
 };
 
 export type SeaTalkMediaInfo = {

@@ -4,16 +4,20 @@ import {
 	DM_GROUP_ACCESS_REASON,
 	resolveDmGroupAccessWithLists,
 } from "openclaw/plugin-sdk/channel-policy";
-import {
-	resolveSendableOutboundReplyParts,
-	sendMediaWithLeadingCaption,
-} from "openclaw/plugin-sdk/reply-payload";
+import { resolveSendableOutboundReplyParts } from "openclaw/plugin-sdk/reply-payload";
+import { checkGroupAccess } from "./access.js";
 import { resolveSeaTalkAccount } from "./accounts.js";
 import type { SeaTalkClient } from "./client.js";
+import {
+	type MessageResolveContext,
+	deliverMediaReplies,
+	resolveForwardedMessages,
+	resolveQuotedMessage,
+} from "./inbound-resolve.js";
 import { buildSeaTalkMediaPayload, resolveInboundMedia } from "./media.js";
 import { createOutboundCoalescer } from "./outbound-coalescer.js";
 import { getSeatalkRuntime } from "./runtime.js";
-import { sendGroupTextMessage, sendMediaToTarget, sendTextMessage } from "./send.js";
+import { sendGroupTextMessage, sendTextMessage } from "./send.js";
 import type {
 	SeaTalkCallbackRequest,
 	SeaTalkGroupMessageEvent,
@@ -214,82 +218,6 @@ function pushToBuffer(key: string, entry: BufferEntry, context: DebounceContext)
 	scheduleFlush(key, state);
 }
 
-async function resolveQuotedMessage(params: {
-	client: SeaTalkClient;
-	quotedMessageId: string;
-	mediaAllowHosts?: string[] | null;
-	log: (msg: string) => void;
-}): Promise<{ text: string; media: SeaTalkMediaInfo[] } | null> {
-	const { client, quotedMessageId, mediaAllowHosts, log } = params;
-	try {
-		const data = await client.getMessageByMessageId(quotedMessageId);
-		const sender =
-			(data.sender as { employee_code?: string } | undefined)?.employee_code ?? "unknown";
-		const tag = data.tag as string | undefined;
-
-		const media: SeaTalkMediaInfo[] = [];
-		let content = "";
-
-		if (tag === "text") {
-			const textObj = data.text as { plain_text?: string; content?: string } | undefined;
-			content = textObj?.plain_text ?? textObj?.content ?? "";
-		} else if (tag === "image" || tag === "file" || tag === "video") {
-			const fakeMsg: SeaTalkMessage = {
-				message_id: quotedMessageId,
-				tag,
-				image:
-					tag === "image" ? (data.image as { content: string } | undefined) : undefined,
-				file:
-					tag === "file"
-						? (data.file as { content: string; filename: string } | undefined)
-						: undefined,
-				video:
-					tag === "video" ? (data.video as { content: string } | undefined) : undefined,
-			};
-			const resolved = await resolveInboundMedia({
-				message: fakeMsg,
-				client,
-				mediaAllowHosts,
-				log,
-			});
-			if (resolved) {
-				media.push(resolved);
-				content = resolved.placeholder;
-			} else {
-				content = `<media:${tag}>`;
-			}
-		} else {
-			content = `<unsupported:${tag ?? "unknown"}>`;
-		}
-
-		return { text: `[Quoted from ${sender}: ${content}]`, media };
-	} catch (err) {
-		log(`seatalk: failed to resolve quoted message ${quotedMessageId}: ${String(err)}`);
-		return null;
-	}
-}
-
-async function deliverMediaReplies(params: {
-	mediaUrls: string[];
-	client: SeaTalkClient;
-	to: string;
-	threadId?: string;
-	isGroup: boolean;
-	log: (msg: string) => void;
-}): Promise<void> {
-	const { mediaUrls, client, to, threadId, isGroup, log } = params;
-	await sendMediaWithLeadingCaption({
-		mediaUrls,
-		caption: "",
-		send: async ({ mediaUrl }) => {
-			await sendMediaToTarget({ client, to, mediaUrl, threadId, isGroup });
-		},
-		onError: async ({ error, mediaUrl }) => {
-			log(`seatalk: failed to send media ${mediaUrl}: ${String(error)}`);
-		},
-	});
-}
-
 async function processBufferedDmEvents(
 	entries: DmBufferEntry[],
 	context: DebounceContext,
@@ -301,27 +229,6 @@ async function processBufferedDmEvents(
 	const first = entries[0].parsedEvent;
 	const employeeCode = first.employee_code;
 	const email = first.email;
-
-	const textParts: string[] = [];
-	const mediaMessages: SeaTalkMessage[] = [];
-
-	for (const { parsedEvent } of entries) {
-		const msg = parsedEvent.message;
-		switch (msg.tag) {
-			case "text":
-				if (msg.text?.plain_text || msg.text?.content)
-					textParts.push(msg.text.plain_text ?? msg.text.content ?? "");
-				break;
-			case "image":
-			case "file":
-			case "video":
-				mediaMessages.push(msg);
-				break;
-			case "combined_forwarded_chat_history":
-				log(`seatalk[${accountId}]: skipping combined_forwarded_chat_history`);
-				break;
-		}
-	}
 
 	const account = resolveSeaTalkAccount({ cfg, accountId });
 	const seatalkCfg = account.config;
@@ -377,11 +284,44 @@ async function processBufferedDmEvents(
 	}
 
 	const mediaAllowHosts = seatalkCfg?.mediaAllowHosts;
+	const resolveCtx: MessageResolveContext = { client, mediaAllowHosts, log };
 
+	const textParts: string[] = [];
 	const mediaList: SeaTalkMediaInfo[] = [];
-	for (const msg of mediaMessages) {
-		const media = await resolveInboundMedia({ message: msg, client, mediaAllowHosts, log });
-		if (media) mediaList.push(media);
+
+	for (const { parsedEvent } of entries) {
+		const msg = parsedEvent.message;
+		switch (msg.tag) {
+			case "text":
+				if (msg.text?.plain_text || msg.text?.content)
+					textParts.push(msg.text.plain_text ?? msg.text.content ?? "");
+				break;
+			case "image":
+			case "file":
+			case "video": {
+				const media = await resolveInboundMedia({
+					message: msg,
+					client,
+					mediaAllowHosts,
+					log,
+				});
+				if (media) mediaList.push(media);
+				break;
+			}
+			case "combined_forwarded_chat_history": {
+				const fwd = msg.combined_forwarded_chat_history?.content;
+				if (fwd) {
+					const result = await resolveForwardedMessages(fwd, resolveCtx);
+					mediaList.push(...result.media);
+					textParts.push(
+						result.lines.length > 0
+							? `[Forwarded messages]\n${result.lines.join("\n")}`
+							: "[Forwarded messages]",
+					);
+				}
+				break;
+			}
+		}
 	}
 
 	const seenQuotedIds = new Set<string>();
@@ -442,13 +382,16 @@ async function processBufferedDmEvents(
 			contextKey: `seatalk:message:${employeeCode}:${messageId}`,
 		});
 
+		const eventTimestamp = entries[0].event.timestamp;
+		const messageTimestamp = eventTimestamp ? new Date(eventTimestamp * 1000) : new Date();
+
 		const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(cfg);
 		const bodyForAgent = `${senderName}: ${messageText}`;
 
 		const body = core.channel.reply.formatAgentEnvelope({
 			channel: "SeaTalk",
 			from: employeeCode,
-			timestamp: new Date(),
+			timestamp: messageTimestamp,
 			envelope: envelopeOptions,
 			body: bodyForAgent,
 		});
@@ -474,7 +417,7 @@ async function processBufferedDmEvents(
 			Surface: "seatalk" as const,
 			MessageSid: messageId,
 			MessageThreadId: threadId || undefined,
-			Timestamp: Date.now(),
+			Timestamp: eventTimestamp ? eventTimestamp * 1000 : Date.now(),
 			WasMentioned: false,
 			CommandAuthorized: true,
 			OriginatingChannel: "seatalk" as const,
@@ -596,60 +539,12 @@ export async function handleSeaTalkMessage(params: {
 	log(
 		`seatalk[${accountId}]: received ${msgEvent.message.tag} from ${msgEvent.employee_code} (threadId=${msgEvent.message.thread_id || "none"})`,
 	);
-
 	const key = dmDebounceKey(accountId, msgEvent.employee_code, msgEvent.message.thread_id);
 	pushToBuffer(
 		key,
 		{ kind: "dm", event, parsedEvent: msgEvent },
 		{ cfg, client, runtime, accountId },
 	);
-}
-
-function checkGroupAccess(params: {
-	groupPolicy: string;
-	groupAllowFrom?: string[];
-	groupSenderAllowFrom?: string[];
-	groupId: string;
-	senderEmployeeCode: string;
-	senderEmail?: string;
-}): { allowed: boolean; reason?: string } {
-	const {
-		groupPolicy,
-		groupAllowFrom,
-		groupSenderAllowFrom,
-		groupId,
-		senderEmployeeCode,
-		senderEmail,
-	} = params;
-
-	if (groupPolicy === "disabled") {
-		return { allowed: false, reason: "groupPolicy is disabled" };
-	}
-
-	if (groupPolicy === "allowlist") {
-		const list = groupAllowFrom ?? [];
-		if (!list.includes(groupId)) {
-			return { allowed: false, reason: `group ${groupId} not in groupAllowFrom` };
-		}
-	}
-
-	if (groupSenderAllowFrom && groupSenderAllowFrom.length > 0) {
-		const match = groupSenderAllowFrom.some((entry) => {
-			const e = entry.trim();
-			if (e === "*") return true;
-			if (e === senderEmployeeCode) return true;
-			if (senderEmail && e.toLowerCase() === senderEmail.toLowerCase()) return true;
-			return false;
-		});
-		if (!match) {
-			return {
-				allowed: false,
-				reason: `sender ${senderEmployeeCode} not in groupSenderAllowFrom`,
-			};
-		}
-	}
-
-	return { allowed: true };
 }
 
 export async function handleSeaTalkGroupMessage(params: {
@@ -731,8 +626,13 @@ async function processBufferedGroupEvents(
 	const senderEmail = sender.email;
 	const threadId = msg.thread_id;
 
+	const account = resolveSeaTalkAccount({ cfg, accountId });
+	const seatalkCfg = account.config;
+	const mediaAllowHosts = seatalkCfg?.mediaAllowHosts;
+	const resolveCtx: MessageResolveContext = { client, mediaAllowHosts, log };
+
 	const textParts: string[] = [];
-	const mediaMessages: SeaTalkMessage[] = [];
+	const mediaList: SeaTalkMediaInfo[] = [];
 
 	for (const { groupEvent } of entries) {
 		const m = groupEvent.message;
@@ -743,25 +643,30 @@ async function processBufferedGroupEvents(
 				break;
 			case "image":
 			case "file":
-			case "video":
-				mediaMessages.push(m);
+			case "video": {
+				const media = await resolveInboundMedia({
+					message: m,
+					client,
+					mediaAllowHosts,
+					log,
+				});
+				if (media) mediaList.push(media);
 				break;
-			case "combined_forwarded_chat_history":
-				log(
-					`seatalk[${accountId}]: skipping combined_forwarded_chat_history in group ${groupId}`,
-				);
+			}
+			case "combined_forwarded_chat_history": {
+				const fwd = m.combined_forwarded_chat_history?.content;
+				if (fwd) {
+					const result = await resolveForwardedMessages(fwd, resolveCtx);
+					mediaList.push(...result.media);
+					textParts.push(
+						result.lines.length > 0
+							? `[Forwarded messages]\n${result.lines.join("\n")}`
+							: "[Forwarded messages]",
+					);
+				}
 				break;
+			}
 		}
-	}
-
-	const account = resolveSeaTalkAccount({ cfg, accountId });
-	const seatalkCfg = account.config;
-	const mediaAllowHosts = seatalkCfg?.mediaAllowHosts;
-
-	const mediaList: SeaTalkMediaInfo[] = [];
-	for (const m of mediaMessages) {
-		const media = await resolveInboundMedia({ message: m, client, mediaAllowHosts, log });
-		if (media) mediaList.push(media);
 	}
 
 	const quotedMessageId = first.groupEvent.message.quoted_message_id;
@@ -820,11 +725,14 @@ async function processBufferedGroupEvents(
 			{ sessionKey: route.sessionKey, contextKey: `seatalk:group:${groupId}:${messageId}` },
 		);
 
+		const sentAt = first.groupEvent.message.message_sent_time;
+		const messageTimestamp = sentAt ? new Date(sentAt * 1000) : new Date();
+
 		const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(cfg);
 		const body = core.channel.reply.formatAgentEnvelope({
 			channel: "SeaTalk",
 			from: employeeCode,
-			timestamp: new Date(),
+			timestamp: messageTimestamp,
 			envelope: envelopeOptions,
 			body: `${senderName}: ${messageText}`,
 		});
@@ -849,7 +757,7 @@ async function processBufferedGroupEvents(
 			Surface: "seatalk" as const,
 			MessageSid: messageId,
 			MessageThreadId: threadId || undefined,
-			Timestamp: Date.now(),
+			Timestamp: sentAt ? sentAt * 1000 : Date.now(),
 			WasMentioned: wasMentioned,
 			CommandAuthorized: true,
 			OriginatingChannel: "seatalk" as const,
