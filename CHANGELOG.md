@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- Support forwarded messages.
+- Outbound coalescing: consecutive reply payloads are merged into a single message with automatic markdown-aware chunking at 4000 chars, configurable via `outboundCoalescing`.
+- Pairing mode for DM access control with interactive approval flow (`dmPolicy: "pairing"`). Thanks @edvardchen.
+- Inbound media URL allowlist gate and MIME detection fallback for extensionless URLs. Thanks @edvardchen.
+- Retry on rate-limit with exponential backoff and include `x-rid` in all error messages.
+
 ## 0.2.1
 
 - Remove `setupEntry` to avoid plugin id mismatch when channel is unconfigured.
