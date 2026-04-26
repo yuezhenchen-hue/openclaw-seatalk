@@ -1,4 +1,5 @@
-import type { OpenClawConfig, RuntimeEnv } from "openclaw/plugin-sdk";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
 import WebSocket from "ws";
 import {
 	listEnabledSeaTalkAccounts,

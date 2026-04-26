@@ -1,6 +1,86 @@
 {
 	"id": "openclaw-seatalk",
 	"channels": ["seatalk"],
+	"channelConfigs": {
+		"seatalk": {
+			"label": "SeaTalk",
+			"description": "SeaTalk internal messaging integration.",
+			"schema": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"enabled": { "type": "boolean" },
+					"appId": { "type": "string" },
+					"appSecret": { "type": "string" },
+					"signingSecret": { "type": "string" },
+					"mode": { "type": "string", "enum": ["webhook", "relay"] },
+					"relayUrl": { "type": "string" },
+					"webhookPort": { "type": "integer", "minimum": 1 },
+					"webhookPath": { "type": "string" },
+					"dmPolicy": { "type": "string", "enum": ["open", "allowlist", "pairing"] },
+					"allowFrom": { "type": "array", "items": { "type": "string" } },
+					"groupPolicy": { "type": "string", "enum": ["disabled", "allowlist", "open"] },
+					"groupAllowFrom": { "type": "array", "items": { "type": "string" } },
+					"groupSenderAllowFrom": { "type": "array", "items": { "type": "string" } },
+					"outboundCoalescing": { "type": "boolean" },
+					"processingIndicator": { "type": "string", "enum": ["typing", "off"] },
+					"mediaAllowHosts": { "type": "array", "items": { "type": "string" } },
+					"tools": {
+						"type": "object",
+						"properties": {
+							"groupInfo": { "type": "boolean" },
+							"groupHistory": { "type": "boolean" },
+							"groupList": { "type": "boolean" },
+							"threadHistory": { "type": "boolean" },
+							"getMessage": { "type": "boolean" }
+						}
+					},
+					"accounts": {
+						"type": "object",
+						"additionalProperties": {
+							"type": "object",
+							"properties": {
+								"enabled": { "type": "boolean" },
+								"appId": { "type": "string" },
+								"appSecret": { "type": "string" },
+								"signingSecret": { "type": "string" },
+								"mode": { "type": "string", "enum": ["webhook", "relay"] },
+								"relayUrl": { "type": "string" },
+								"webhookPort": { "type": "integer", "minimum": 1 },
+								"webhookPath": { "type": "string" },
+								"dmPolicy": {
+									"type": "string",
+									"enum": ["open", "allowlist", "pairing"]
+								},
+								"allowFrom": { "type": "array", "items": { "type": "string" } },
+								"groupPolicy": {
+									"type": "string",
+									"enum": ["disabled", "allowlist", "open"]
+								},
+								"groupAllowFrom": {
+									"type": "array",
+									"items": { "type": "string" }
+								},
+								"groupSenderAllowFrom": {
+									"type": "array",
+									"items": { "type": "string" }
+								},
+								"outboundCoalescing": { "type": "boolean" },
+								"processingIndicator": {
+									"type": "string",
+									"enum": ["typing", "off"]
+								},
+								"mediaAllowHosts": {
+									"type": "array",
+									"items": { "type": "string" }
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
 	"configSchema": {
 		"type": "object",
 		"additionalProperties": false,

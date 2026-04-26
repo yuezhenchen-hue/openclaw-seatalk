@@ -1,5 +1,9 @@
-import type { ChannelPlugin, OpenClawConfig } from "openclaw/plugin-sdk";
 import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
+import {
+	type ChannelPlugin,
+	type OpenClawConfig,
+	buildChannelConfigSchema,
+} from "openclaw/plugin-sdk/core";
 import { DEFAULT_ACCOUNT_ID, PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/core";
 import {
 	listSeaTalkAccountIds,
@@ -7,6 +11,7 @@ import {
 	resolveSeaTalkAccount,
 } from "./accounts.js";
 import { resolveSeaTalkClient } from "./client.js";
+import { SeaTalkConfigSchema } from "./config-schema.js";
 import { seatalkOutbound } from "./outbound.js";
 import { probeSeaTalk } from "./probe.js";
 import { sendTextMessage } from "./send.js";
@@ -49,65 +54,7 @@ export const seatalkPlugin: ChannelPlugin<ResolvedSeaTalkAccount> = {
 		reply: false,
 	},
 	reload: { configPrefixes: ["channels.seatalk"] },
-	configSchema: {
-		schema: {
-			type: "object",
-			additionalProperties: false,
-			properties: {
-				enabled: { type: "boolean" },
-				appId: { type: "string" },
-				appSecret: { type: "string" },
-				signingSecret: { type: "string" },
-				mode: { type: "string", enum: ["webhook", "relay"] },
-				relayUrl: { type: "string" },
-				webhookPort: { type: "integer", minimum: 1 },
-				webhookPath: { type: "string" },
-				dmPolicy: { type: "string", enum: ["open", "allowlist", "pairing"] },
-				allowFrom: { type: "array", items: { type: "string" } },
-				groupPolicy: { type: "string", enum: ["disabled", "allowlist", "open"] },
-				groupAllowFrom: { type: "array", items: { type: "string" } },
-				groupSenderAllowFrom: { type: "array", items: { type: "string" } },
-				processingIndicator: { type: "string", enum: ["typing", "off"] },
-				mediaAllowHosts: { type: "array", items: { type: "string" } },
-				tools: {
-					type: "object",
-					properties: {
-						groupInfo: { type: "boolean" },
-						groupHistory: { type: "boolean" },
-						groupList: { type: "boolean" },
-						threadHistory: { type: "boolean" },
-						getMessage: { type: "boolean" },
-					},
-				},
-				accounts: {
-					type: "object",
-					additionalProperties: {
-						type: "object",
-						properties: {
-							enabled: { type: "boolean" },
-							appId: { type: "string" },
-							appSecret: { type: "string" },
-							signingSecret: { type: "string" },
-							mode: { type: "string", enum: ["webhook", "relay"] },
-							relayUrl: { type: "string" },
-							webhookPort: { type: "integer", minimum: 1 },
-							webhookPath: { type: "string" },
-							dmPolicy: { type: "string", enum: ["open", "allowlist", "pairing"] },
-							allowFrom: { type: "array", items: { type: "string" } },
-							groupPolicy: {
-								type: "string",
-								enum: ["disabled", "allowlist", "open"],
-							},
-							groupAllowFrom: { type: "array", items: { type: "string" } },
-							groupSenderAllowFrom: { type: "array", items: { type: "string" } },
-							processingIndicator: { type: "string", enum: ["typing", "off"] },
-							mediaAllowHosts: { type: "array", items: { type: "string" } },
-						},
-					},
-				},
-			},
-		},
-	},
+	configSchema: buildChannelConfigSchema(SeaTalkConfigSchema),
 	config: {
 		listAccountIds: (cfg) => listSeaTalkAccountIds(cfg),
 		resolveAccount: (cfg, accountId) => resolveSeaTalkAccount({ cfg, accountId }),

@@ -1,5 +1,8 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/core";
+import {
+	DEFAULT_ACCOUNT_ID,
+	type OpenClawConfig,
+	normalizeAccountId,
+} from "openclaw/plugin-sdk/core";
 import type { ResolvedSeaTalkAccount, SeaTalkAccountConfig, SeaTalkConfig } from "./types.js";
 
 function listConfiguredAccountIds(cfg: OpenClawConfig): string[] {

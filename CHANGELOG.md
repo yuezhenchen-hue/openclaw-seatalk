@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Update OpenClaw compatibility and remove SDK deprecation warnings.
+
 ## 0.3.0
 
 - Support forwarded messages.

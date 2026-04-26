@@ -1,6 +1,6 @@
 {
 	"name": "openclaw-seatalk",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "OpenClaw SeaTalk channel plugin",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -21,7 +21,8 @@
 		"lint": "biome lint .",
 		"lint:fix": "biome lint --fix .",
 		"check": "biome check .",
-		"check:fix": "biome check --fix ."
+		"check:fix": "biome check --fix .",
+		"pack:clawhub": "mkdir -p dist && npm pack --pack-destination dist"
 	},
 	"dependencies": {
 		"@sinclair/typebox": "0.34.48",

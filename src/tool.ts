@@ -1,4 +1,4 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { listEnabledSeaTalkAccounts, resolveSeaTalkAccount } from "./accounts.js";
 import type { SeaTalkClient } from "./client.js";
 import { resolveSeaTalkClient } from "./client.js";

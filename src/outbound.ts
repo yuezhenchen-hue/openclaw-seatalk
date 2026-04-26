@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/channel-send-result";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { resolveSeaTalkAccount } from "./accounts.js";
 import { type SeaTalkClient, resolveSeaTalkClient } from "./client.js";
 import { getSeatalkRuntime } from "./runtime.js";

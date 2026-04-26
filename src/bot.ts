@@ -1,10 +1,11 @@
-import type { OpenClawConfig, RuntimeEnv } from "openclaw/plugin-sdk";
 import { createChannelPairingController } from "openclaw/plugin-sdk/channel-pairing";
 import {
 	DM_GROUP_ACCESS_REASON,
 	resolveDmGroupAccessWithLists,
 } from "openclaw/plugin-sdk/channel-policy";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { resolveSendableOutboundReplyParts } from "openclaw/plugin-sdk/reply-payload";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
 import { checkGroupAccess } from "./access.js";
 import { resolveSeaTalkAccount } from "./accounts.js";
 import type { SeaTalkClient } from "./client.js";
