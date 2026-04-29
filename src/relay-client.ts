@@ -14,6 +14,7 @@ import type { ResolvedSeaTalkAccount, SeaTalkCallbackRequest } from "./types.js"
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
 const BACKOFF_MULTIPLIER = 2;
+const STALE_TIMEOUT_MS = 75_000;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 	return new Promise((resolve) => {
@@ -64,13 +65,36 @@ async function connectSingleAccount(params: {
 				log(`seatalk[${accountId}]: connecting to relay ${relayUrl}...`);
 				const ws = new WebSocket(relayUrl);
 
+				let staleTimer: ReturnType<typeof setTimeout> | undefined;
+				const clearStaleTimer = () => {
+					if (staleTimer) {
+						clearTimeout(staleTimer);
+						staleTimer = undefined;
+					}
+				};
+				const armStaleTimer = () => {
+					clearStaleTimer();
+					staleTimer = setTimeout(() => {
+						error(
+							`seatalk[${accountId}]: relay silent for ${STALE_TIMEOUT_MS}ms, terminating`,
+						);
+						ws.terminate();
+					}, STALE_TIMEOUT_MS);
+				};
+
 				const handleAbort = () => {
+					clearStaleTimer();
 					ws.close();
 					resolve();
 				};
 				abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
+				ws.on("upgrade", (response) => {
+					response.socket.setKeepAlive(true, 60_000);
+				});
+
 				ws.on("open", () => {
+					armStaleTimer();
 					log(`seatalk[${accountId}]: relay connected, authenticating...`);
 					ws.send(
 						JSON.stringify({
@@ -85,6 +109,7 @@ async function connectSingleAccount(params: {
 				let authenticated = false;
 
 				ws.on("message", (raw) => {
+					armStaleTimer();
 					let msg: { type: string; event?: SeaTalkCallbackRequest; error?: string };
 					try {
 						msg = JSON.parse(String(raw));
@@ -132,6 +157,7 @@ async function connectSingleAccount(params: {
 				});
 
 				ws.on("close", (code, reason) => {
+					clearStaleTimer();
 					abortSignal?.removeEventListener("abort", handleAbort);
 					if (authenticated) {
 						log(
@@ -142,6 +168,7 @@ async function connectSingleAccount(params: {
 				});
 
 				ws.on("error", (err) => {
+					clearStaleTimer();
 					abortSignal?.removeEventListener("abort", handleAbort);
 					error(`seatalk[${accountId}]: relay connection error: ${String(err)}`);
 					resolve();

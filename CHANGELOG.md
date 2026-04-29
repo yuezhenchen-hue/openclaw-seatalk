@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Detect half-open relay connections: reconnect after 75s of inbound silence; enable TCP keep-alive (60s).
+
 ## 0.3.1
 
 - Update OpenClaw compatibility and remove SDK deprecation warnings.
