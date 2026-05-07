@@ -77,12 +77,11 @@ openclaw plugins install openclaw-seatalk@0.1.6
 
 ### From source (development)
 
-Clone the repo and link it directly — no build step required. OpenClaw loads TypeScript via Jiti at runtime.
-
 ```bash
 git clone https://github.com/lf4096/openclaw-seatalk.git
 cd openclaw-seatalk
-npm install
+pnpm install
+pnpm build
 openclaw plugins install -l .
 ```
 
@@ -212,14 +211,6 @@ Or edit the OpenClaw config file directly (`~/.openclaw/openclaw.json`).
 | `tools.threadHistory` | boolean | `true` | Enable `seatalk` tool `thread_history` action |
 | `tools.getMessage` | boolean | `true` | Enable `seatalk` tool `get_message` action |
 
-Credentials can also be provided via environment variables:
-
-| Env Var | Config Field |
-|---------|-------------|
-| `SEATALK_APP_ID` | `appId` |
-| `SEATALK_APP_SECRET` | `appSecret` |
-| `SEATALK_SIGNING_SECRET` | `signingSecret` |
-
 ### Multi-account
 
 Each account has its own credentials and gateway mode. Top-level fields (e.g. `tools`, `dmPolicy`) serve as defaults that accounts inherit and can override.
@@ -272,16 +263,56 @@ Each action can be individually disabled via the `tools` config.
 
 ## Development
 
+Install dependencies:
+
 ```bash
-# Install dependencies
 pnpm install
+```
 
-# Format code
+Build `dist/`:
+
+```bash
+pnpm build
+```
+
+Format code:
+
+```bash
 pnpm format
+```
 
-# Lint
+Lint:
+
+```bash
 pnpm lint
+```
 
-# Check (format + lint)
+Check formatting and lint:
+
+```bash
 pnpm check
 ```
+
+## Publishing
+
+For npm releases, `prepublishOnly` rebuilds `dist/` automatically:
+
+```bash
+npm version patch
+npm publish --access public
+```
+
+For beta builds, publish with the `beta` dist-tag:
+
+```bash
+npm publish --tag beta
+```
+
+For ClawHub releases, build first because `prepublishOnly` does not run:
+
+```bash
+pnpm build
+clawhub package publish .
+```
+
+Inspect tarball contents with `npm pack --dry-run`.

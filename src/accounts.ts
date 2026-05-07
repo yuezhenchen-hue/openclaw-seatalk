@@ -52,9 +52,9 @@ export function resolveSeaTalkCredentials(cfg?: SeaTalkConfig): {
 	appSecret: string;
 	signingSecret: string;
 } | null {
-	const appId = (cfg?.appId ?? process.env.SEATALK_APP_ID)?.trim();
-	const appSecret = (cfg?.appSecret ?? process.env.SEATALK_APP_SECRET)?.trim();
-	const signingSecret = (cfg?.signingSecret ?? process.env.SEATALK_SIGNING_SECRET)?.trim();
+	const appId = cfg?.appId?.trim();
+	const appSecret = cfg?.appSecret?.trim();
+	const signingSecret = cfg?.signingSecret?.trim();
 	if (!appId || !appSecret || !signingSecret) {
 		return null;
 	}

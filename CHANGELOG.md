@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- Publish bundled JS only (`dist/*.js`), fixing install failure on OpenClaw versions that require compiled runtime output for TypeScript entries.
+- Re-declare `openclaw.setupEntry` so the channel appears in onboarding before configuration.
+- Drop `SEATALK_*` env-var credential fallback.
+
 ## 0.3.2
 
 - Detect half-open relay connections: reconnect after 75s of inbound silence; enable TCP keep-alive (60s).

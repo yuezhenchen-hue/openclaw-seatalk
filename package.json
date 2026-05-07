@@ -1,8 +1,9 @@
 {
 	"name": "openclaw-seatalk",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"description": "OpenClaw SeaTalk channel plugin",
 	"type": "module",
+	"main": "./dist/index.js",
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
@@ -10,19 +11,29 @@
 	},
 	"homepage": "https://github.com/lf4096/openclaw-seatalk#readme",
 	"bugs": "https://github.com/lf4096/openclaw-seatalk/issues",
-	"keywords": ["openclaw", "seatalk", "chatbot", "channel-plugin"],
+	"keywords": [
+		"openclaw",
+		"seatalk",
+		"chatbot",
+		"channel-plugin"
+	],
 	"engines": {
 		"node": ">=22.16.0"
 	},
-	"files": ["index.ts", "setup-entry.ts", "src/", "openclaw.plugin.json"],
+	"files": [
+		"dist/**/*.js",
+		"openclaw.plugin.json",
+		"CHANGELOG.md"
+	],
 	"scripts": {
+		"build": "tsup",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
 		"lint": "biome lint .",
 		"lint:fix": "biome lint --fix .",
 		"check": "biome check .",
 		"check:fix": "biome check --fix .",
-		"pack:clawhub": "mkdir -p dist && npm pack --pack-destination dist"
+		"prepublishOnly": "pnpm build"
 	},
 	"dependencies": {
 		"@sinclair/typebox": "0.34.48",
@@ -32,7 +43,9 @@
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",
 		"@types/ws": "^8.5.0",
-		"openclaw": "latest"
+		"openclaw": "latest",
+		"tsup": "^8.3.0",
+		"typescript": "^5.6.0"
 	},
 	"peerDependencies": {
 		"openclaw": ">=2026.3.22"
@@ -43,10 +56,15 @@
 		}
 	},
 	"pnpm": {
-		"onlyBuiltDependencies": ["@biomejs/biome"]
+		"onlyBuiltDependencies": [
+			"@biomejs/biome"
+		]
 	},
 	"openclaw": {
-		"extensions": ["./index.ts"],
+		"extensions": [
+			"./dist/index.js"
+		],
+		"setupEntry": "./dist/setup-entry.js",
 		"channel": {
 			"id": "seatalk",
 			"label": "SeaTalk",
@@ -65,6 +83,10 @@
 		"build": {
 			"openclawVersion": "2026.3.22",
 			"pluginSdkVersion": "2026.3.22"
+		},
+		"release": {
+			"publishToNpm": true,
+			"publishToClawHub": true
 		}
 	}
 }

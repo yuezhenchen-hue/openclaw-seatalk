@@ -1,6 +1,7 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import type { SeaTalkClient } from "./client.js";
-import { readLocalMedia } from "./media-local.js";
 import { getSeatalkRuntime } from "./runtime.js";
 import type { SeaTalkMediaInfo, SeaTalkMessage, SeaTalkOutboundMedia } from "./types.js";
 
@@ -146,6 +147,32 @@ async function fetchRemoteMedia(url: string): Promise<{ buffer: Buffer; name: st
 		return { buffer, name: path.basename(urlPath) || "file" };
 	} finally {
 		clearTimeout(timeout);
+	}
+}
+
+function readLocalMedia(mediaUrl: string): { buffer: Buffer; name: string } {
+	const resolved = mediaUrl.startsWith("~")
+		? path.join(os.homedir(), mediaUrl.slice(1))
+		: mediaUrl.replace(/^file:\/\//, "");
+
+	if (!fs.existsSync(resolved)) {
+		throw new Error(`Media file not found: ${resolved}`);
+	}
+
+	const fd = fs.openSync(resolved, "r");
+	try {
+		const { size } = fs.fstatSync(fd);
+		const buf = Buffer.alloc(size);
+		let bytesRead = 0;
+		while (bytesRead < size) {
+			const n = fs.readSync(fd, buf, bytesRead, size - bytesRead, bytesRead);
+			if (n === 0) break;
+			bytesRead += n;
+		}
+		const finalBuf = bytesRead < size ? buf.subarray(0, bytesRead) : buf;
+		return { buffer: finalBuf, name: path.basename(resolved) };
+	} finally {
+		fs.closeSync(fd);
 	}
 }
 

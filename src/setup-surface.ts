@@ -112,7 +112,6 @@ async function noteSeaTalkCredentialHelp(
 			"4) Get Signing Secret from Event Callback settings",
 			"5) Enable Bot capability and set status to Online",
 			'6) Enable "Send Message to Bot User" permission',
-			"Tip: you can also set SEATALK_APP_ID / SEATALK_APP_SECRET / SEATALK_SIGNING_SECRET env vars.",
 		].join("\n"),
 		"SeaTalk credentials",
 	);
@@ -143,12 +142,6 @@ export const seatalkSetupWizard: ChannelSetupWizard = {
 				seatalkCfg?.appSecret?.trim() &&
 				seatalkCfg?.signingSecret?.trim(),
 		);
-		const canUseEnv = Boolean(
-			!hasConfigCreds &&
-				process.env.SEATALK_APP_ID?.trim() &&
-				process.env.SEATALK_APP_SECRET?.trim() &&
-				process.env.SEATALK_SIGNING_SECRET?.trim(),
-		);
 
 		let appId: string | null = null;
 		let appSecret: string | null = null;
@@ -158,28 +151,7 @@ export const seatalkSetupWizard: ChannelSetupWizard = {
 			await noteSeaTalkCredentialHelp(prompter);
 		}
 
-		if (canUseEnv) {
-			const keepEnv = await prompter.confirm({
-				message:
-					"SEATALK_APP_ID + SEATALK_APP_SECRET + SEATALK_SIGNING_SECRET detected. Use env vars?",
-				initialValue: true,
-			});
-			if (keepEnv) {
-				next = {
-					...next,
-					channels: {
-						...next.channels,
-						seatalk: {
-							...next.channels?.seatalk,
-							enabled: true,
-							dmPolicy: seatalkCfg?.dmPolicy ?? "allowlist",
-						},
-					},
-				} as OpenClawConfig;
-			} else {
-				({ appId, appSecret, signingSecret } = await promptCredentials(prompter));
-			}
-		} else if (hasConfigCreds) {
+		if (hasConfigCreds) {
 			const keep = await prompter.confirm({
 				message: "SeaTalk credentials already configured. Keep them?",
 				initialValue: true,
