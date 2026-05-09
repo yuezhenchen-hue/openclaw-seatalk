@@ -78,7 +78,7 @@ openclaw plugins install openclaw-seatalk@0.1.6
 ### From source (development)
 
 ```bash
-git clone https://github.com/yuezhenchen-hue/openclaw-seatalk/openclaw-seatalk.git
+git clone https://github.com/yuezhenchen-hue/openclaw-seatalk.git
 cd openclaw-seatalk
 pnpm install
 pnpm build
