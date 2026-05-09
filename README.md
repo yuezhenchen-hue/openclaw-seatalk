@@ -23,7 +23,7 @@ OpenClaw channel plugin for [SeaTalk](https://seatalk.io/) messaging.
 
 ### Infrastructure
 
-- **Dual gateway mode** — **webhook** (direct HTTP server) or **relay** (WebSocket client via [seatalk-relay](https://github.com/lf4096/seatalk-relay))
+- **Dual gateway mode** — **webhook** (direct HTTP server) or **relay** (WebSocket client via [seatalk-relay](https://yuezhenchen-hue/openclaw-seatalk/seatalk-relay))
 - **Security** — SHA256 signature verification for all incoming events
 - **Token management** — automatic access token obtain, cache, and refresh
 - **Outbound coalescing** — consecutive reply payloads are merged into a single message with automatic markdown-aware chunking at 4000 chars; configurable via `outboundCoalescing`
@@ -78,7 +78,7 @@ openclaw plugins install openclaw-seatalk@0.1.6
 ### From source (development)
 
 ```bash
-git clone https://github.com/lf4096/openclaw-seatalk.git
+git clone https://github.com/yuezhenchen-hue/openclaw-seatalk/openclaw-seatalk.git
 cd openclaw-seatalk
 pnpm install
 pnpm build
@@ -118,7 +118,7 @@ SeaTalk --HTTP POST-> OpenClaw (webhook server)
 
 ### Relay Mode (recommended for multiple apps)
 
-The plugin connects to a [seatalk-relay](https://github.com/lf4096/seatalk-relay) service as a WebSocket client. The relay service receives webhooks from SeaTalk and forwards events to the plugin. Suitable when OpenClaw runs behind a firewall or NAT without a public address.
+The plugin connects to a [seatalk-relay](https://github.com/yuezhenchen-hue/openclaw-seatalk/seatalk-relay) service as a WebSocket client. The relay service receives webhooks from SeaTalk and forwards events to the plugin. Suitable when OpenClaw runs behind a firewall or NAT without a public address.
 
 ```
 SeaTalk API --HTTP POST-> seatalk-relay <-WebSocket-- OpenClaw (relay mode)
