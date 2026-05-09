@@ -23,7 +23,7 @@ OpenClaw channel plugin for [SeaTalk](https://seatalk.io/) messaging.
 
 ### Infrastructure
 
-- **Dual gateway mode** — **webhook** (direct HTTP server) or **relay** (WebSocket client via [seatalk-relay](https://yuezhenchen-hue/openclaw-seatalk/seatalk-relay))
+- **Dual gateway mode** — **webhook** (direct HTTP server) or **relay** (WebSocket client via [seatalk-relay](https://github.com/yuezhenchen-hue/openclaw-seatalk/seatalk-relay))
 - **Security** — SHA256 signature verification for all incoming events
 - **Token management** — automatic access token obtain, cache, and refresh
 - **Outbound coalescing** — consecutive reply payloads are merged into a single message with automatic markdown-aware chunking at 4000 chars; configurable via `outboundCoalescing`
